@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getPoolData } from '@/lib/opengradient-api'
+// Меняем '@/lib/...' на относительный путь:
+import { getPoolData } from '../../../lib/opengradient-api'
 
 export async function GET(request) {
   try {
