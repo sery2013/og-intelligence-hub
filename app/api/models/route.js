@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-// Меняем '@/lib/...' на относительный путь:
 import { getModelData } from '../../../lib/opengradient-api'
 
 export async function GET() {
