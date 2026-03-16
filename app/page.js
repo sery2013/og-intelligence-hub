@@ -3,8 +3,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, PieChart, Pie, Cell } from 'recharts'
-import { ConnectButton } from '@rainbow-me/rainbowkit'
-import { useAccount, useBalance } from 'wagmi'
 import { exportToCSV, POOL_COLUMNS, MODEL_COLUMNS } from '@/lib/export-utils'
 
 export default function Home() {
@@ -24,10 +22,6 @@ export default function Home() {
   // MemSync data
   const [memSyncData, setMemSyncData] = useState(null)
   const [loadingMemSync, setLoadingMemSync] = useState(true)
-  
-  // Wallet
-  const { address, isConnected } = useAccount()
-  const {  balanceData } = useBalance({ address })
 
   // Load data on tab change
   useEffect(() => {
@@ -200,35 +194,10 @@ export default function Home() {
               <p className="text-white/50 text-sm">OpenGradient Ecosystem</p>
             </div>
           </div>
-          <ConnectButton 
-            showBalance={false}
-            chainStatus="icon"
-            accountStatus={{ smallScreen: 'avatar', largeScreen: 'full' }}
-          />
+          {/* Кнопка кошелька заглушка */}
+          <button className="btn-square btn-secondary">🦊 Connect Wallet</button>
         </div>
       </header>
-
-      {/* Wallet Info */}
-      {isConnected && address && (
-        <div className="glass-card mx-4 mt-4 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-white/50 text-sm">Connected Wallet</p>
-              <p className="font-mono text-og-cyan">
-                {address.slice(0, 6)}...{address.slice(-4)}
-              </p>
-            </div>
-            {balanceData && (
-              <div className="text-right">
-                <p className="text-white/50 text-sm">Balance</p>
-                <p className="font-bold">
-                  {parseFloat(balanceData.formatted).toFixed(4)} {balanceData.symbol}
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Tab Switcher */}
       <nav className="mx-4 mt-6">
