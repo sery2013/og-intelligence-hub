@@ -4,20 +4,17 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, PieChart, Pie, Cell } from 'recharts'
 
-// ===== МОКОВЫЕ ДАННЫЕ (вместо API) =====
-const MOCK_POOLS = [
+// Моковые данные
+const POOLS = [
   { id: 1, name: 'ETH/USDC', tvl: 12500000, apy: 24.5, risk: 'medium', volume24h: 3200000 },
   { id: 2, name: 'OPG/ETH', tvl: 4200000, apy: 42.3, risk: 'high', volume24h: 890000 },
   { id: 3, name: 'USDC/USDT', tvl: 28000000, apy: 8.2, risk: 'low', volume24h: 5100000 },
-  { id: 4, name: 'WBTC/ETH', tvl: 18500000, apy: 18.7, risk: 'low', volume24h: 4200000 },
-  { id: 5, name: 'OPG/USDC', tvl: 2100000, apy: 56.8, risk: 'high', volume24h: 420000 },
 ]
 
-const MOCK_MODELS = [
+const MODELS = [
   { id: 1, name: 'Sentiment Analyzer v2', deployments: 12, inferences: 1847, lastActive: '2h ago', status: 'active' },
   { id: 2, name: 'Image Classifier Pro', deployments: 8, inferences: 3421, lastActive: '5h ago', status: 'active' },
   { id: 3, name: 'Trading Signal Bot', deployments: 5, inferences: 892, lastActive: '1d ago', status: 'inactive' },
-  { id: 4, name: 'NFT Valuation AI', deployments: 15, inferences: 5234, lastActive: '30m ago', status: 'active' },
 ]
 
 const APY_DATA = [
@@ -30,16 +27,6 @@ const APY_DATA = [
   { date: '01/07', ETH_USDC: 24.5, OPG_ETH: 42.3, USDC_USDT: 8.2 },
 ]
 
-const MEMSYNC_DATA = {
-  connectedSources: [
-    { id: 1, name: 'Twitter/X', status: 'synced', lastSync: '5m ago', items: 1247 },
-    { id: 2, name: 'Google Drive', status: 'synced', lastSync: '1h ago', items: 89 },
-    { id: 3, name: 'Notion', status: 'pending', lastSync: '-', items: 0 },
-    { id: 4, name: 'Discord', status: 'error', lastSync: '2d ago', items: 342 },
-  ],
-  stats: { totalItems: 1678, encryptedItems: 1678, storageUsed: '2.4 GB', lastBackup: '2024-01-15' }
-}
-
 const ACTIVITY_DATA = [
   { day: 'Mon', inferences: 245, proofs: 189 },
   { day: 'Tue', inferences: 312, proofs: 267 },
@@ -50,63 +37,58 @@ const ACTIVITY_DATA = [
   { day: 'Sun', inferences: 267, proofs: 223 },
 ]
 
-// ===== УТИЛИТЫ =====
-function exportToCSV(data, filename, columns) {
+const MEMSYNC = {
+  stats: { totalItems: 1678, encryptedItems: 1678, storageUsed: '2.4 GB', lastBackup: '2024-01-15' },
+  sources: [
+    { id: 1, name: 'Twitter/X', status: 'synced', lastSync: '5m ago', items: 1247 },
+    { id: 2, name: 'Google Drive', status: 'synced', lastSync: '1h ago', items: 89 },
+    { id: 3, name: 'Notion', status: 'pending', lastSync: '-', items: 0 },
+  ]
+}
+
+// Утилита экспорта
+function exportCSV(data, filename, cols) {
   if (!data?.length) return
-  const header = columns.map(c => c.label).join(',')
-  const rows = data.map(item => columns.map(col => {
+  const header = cols.map(c => c.label).join(',')
+  const rows = data.map(item => cols.map(col => {
     const v = item[col.key]
-    if (typeof v === 'string' && (v.includes(',') || v.includes('"'))) return `"${v.replace(/"/g, '""')}"`
-    return v
+    return typeof v === 'string' && (v.includes(',') || v.includes('"')) ? `"${v.replace(/"/g, '""')}"` : v
   }).join(','))
   const csv = [header, ...rows].join('\n')
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const blob = new Blob([csv], { type: 'text/csv' })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
   link.download = `${filename}-${new Date().toISOString().split('T')[0]}.csv`
   link.click()
 }
 
-const POOL_COLUMNS = [
-  { key: 'name', label: 'Pool' }, { key: 'tvl', label: 'TVL (USD)' },
-  { key: 'apy', label: 'APY (%)' }, { key: 'risk', label: 'Risk' },
-  { key: 'volume24h', label: '24h Volume (USD)' },
+const POOL_COLS = [
+  { key: 'name', label: 'Pool' }, { key: 'tvl', label: 'TVL' },
+  { key: 'apy', label: 'APY' }, { key: 'risk', label: 'Risk' }, { key: 'volume24h', label: '24h Vol' },
 ]
-const MODEL_COLUMNS = [
-  { key: 'name', label: 'Model' }, { key: 'deployments', label: 'Deployments' },
-  { key: 'inferences', label: 'Inferences' }, { key: 'lastActive', label: 'Last Active' },
-  { key: 'status', label: 'Status' },
+const MODEL_COLS = [
+  { key: 'name', label: 'Model' }, { key: 'deployments', label: 'Deploys' },
+  { key: 'inferences', label: 'Inferences' }, { key: 'lastActive', label: 'Active' }, { key: 'status', label: 'Status' },
 ]
 
-// ===== ГЛАВНЫЙ КОМПОНЕНТ =====
 export default function Home() {
-  const [activeTab, setActiveTab] = useState('bitquant')
-  const [lastUpdated, setLastUpdated] = useState(null)
-  const [isAutoRefresh, setIsAutoRefresh] = useState(true)
-  const [pools] = useState(MOCK_POOLS)
-  const [models] = useState(MOCK_MODELS)
-  const [memSyncData] = useState(MEMSYNC_DATA)
+  const [tab, setTab] = useState('bitquant')
+  const [updated, setUpdated] = useState(null)
+  const [auto, setAuto] = useState(true)
 
-  // Авто-обновление (имитация)
   useEffect(() => {
-    if (!isAutoRefresh) return
-    const interval = setInterval(() => setLastUpdated(new Date()), 30000)
-    setLastUpdated(new Date())
-    return () => clearInterval(interval)
-  }, [isAutoRefresh])
+    if (!auto) return
+    const i = setInterval(() => setUpdated(new Date()), 30000)
+    setUpdated(new Date())
+    return () => clearInterval(i)
+  }, [auto])
 
-  const getRiskColor = (risk) => ({
-    low: 'bg-emerald-500', medium: 'bg-og-orange', high: 'bg-red-500'
-  }[risk] || 'bg-gray-500')
-
-  const activeModels = models.filter(m => m.status === 'active').length
-  const pieData = [
-    { name: 'Active', value: activeModels, color: '#10B981' },
-    { name: 'Inactive', value: models.length - activeModels, color: '#6B7280' },
+  const riskCol = (r) => ({ low: 'bg-emerald-500', medium: 'bg-og-orange', high: 'bg-red-500' }[r] || 'bg-gray-500')
+  const activeM = MODELS.filter(m => m.status === 'active').length
+  const pie = [
+    { name: 'Active', value: activeM, color: '#10B981' },
+    { name: 'Inactive', value: MODELS.length - activeM, color: '#6B7280' },
   ]
-
-  const exportPools = () => exportToCSV(pools, 'bitquant-pools', POOL_COLUMNS)
-  const exportModels = () => exportToCSV(models, 'modelhub-models', MODEL_COLUMNS)
 
   return (
     <main className="relative z-10 min-h-screen pb-12">
@@ -129,18 +111,18 @@ export default function Home() {
       {/* Tabs */}
       <nav className="mx-4 mt-6">
         <div className="glass-card p-2 inline-flex gap-2 flex-wrap">
-          {['bitquant', 'models', 'memsync'].map(tab => (
+          {[
+            { id: 'bitquant', label: '📈 BitQuant', color: 'linear-gradient(135deg, #10B981 0%, #059669 100%)' },
+            { id: 'models', label: '🤖 Model Hub', color: 'linear-gradient(135deg, #9D4EDD 0%, #7B3FB8 100%)' },
+            { id: 'memsync', label: '🧠 MemSync', color: 'linear-gradient(135deg, #00D9FF 0%, #06B6D4 100%)' },
+          ].map(t => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`btn-square px-4 md:px-6 ${activeTab === tab ? 'tab-active' : 'tab-inactive'}`}
-              style={activeTab === tab ? {
-                background: tab === 'bitquant' ? 'linear-gradient(135deg, #10B981 0%, #059669 100%)' :
-                           tab === 'models' ? 'linear-gradient(135deg, #9D4EDD 0%, #7B3FB8 100%)' :
-                           'linear-gradient(135deg, #00D9FF 0%, #06B6D4 100%)'
-              } : {}}
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`btn-square px-4 md:px-6 ${tab === t.id ? 'tab-active' : 'tab-inactive'}`}
+              style={tab === t.id ? { background: t.color } : {}}
             >
-              {tab === 'bitquant' ? '📈 BitQuant' : tab === 'models' ? '🤖 Model Hub' : '🧠 MemSync'}
+              {t.label}
             </button>
           ))}
         </div>
@@ -151,15 +133,15 @@ export default function Home() {
         <AnimatePresence mode="wait">
           
           {/* BITQUANT */}
-          {activeTab === 'bitquant' && (
-            <motion.div key="bitquant" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.3 }}>
+          {tab === 'bitquant' && (
+            <motion.div key="bq" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.3 }}>
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
                 <h2 className="text-3xl font-bold" style={{ textShadow: '0 0 10px rgba(16,185,129,0.5)' }}>📈 BitQuant DeFi Analytics</h2>
                 <div className="flex items-center gap-3">
-                  <span className="text-white/60 text-sm">🕐 {lastUpdated?.toLocaleTimeString() || '—'}</span>
+                  <span className="text-white/60 text-sm">🕐 {updated?.toLocaleTimeString() || '—'}</span>
                   <label className="flex items-center gap-2 cursor-pointer text-sm">
                     <span className="text-white/60 hidden md:inline">Авто</span>
-                    <input type="checkbox" checked={isAutoRefresh} onChange={(e) => setIsAutoRefresh(e.target.checked)} className="sr-only peer" />
+                    <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} className="sr-only peer" />
                     <div className="w-10 h-5 bg-white/10 rounded-full peer peer-checked:bg-emerald-500 transition-colors"></div>
                     <div className="absolute w-4 h-5 bg-white rounded-[2%] transition-transform peer-checked:translate-x-5"></div>
                   </label>
@@ -167,11 +149,9 @@ export default function Home() {
               </div>
 
               <div className="glass-card p-6 mb-8">
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4">
+                <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xl font-bold">🏊 Liquidity Pools</h3>
-                  <div className="flex gap-2 flex-wrap">
-                    <button onClick={exportPools} className="btn-square btn-secondary text-sm">📥 Export CSV</button>
-                  </div>
+                  <button onClick={() => exportCSV(POOLS, 'pools', POOL_COLS)} className="btn-square btn-secondary text-sm">📥 Export CSV</button>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full">
@@ -179,17 +159,17 @@ export default function Home() {
                       <tr className="text-left text-white/50 border-b border-white/10">
                         <th className="pb-3">Pool</th><th className="pb-3">TVL</th>
                         <th className="pb-3">APY</th><th className="pb-3">Risk</th>
-                        <th className="pb-3">24h Volume</th>
+                        <th className="pb-3">24h Vol</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {pools.map(pool => (
-                        <tr key={pool.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                          <td className="py-4 font-semibold">{pool.name}</td>
-                          <td className="py-4">${(pool.tvl/1e6).toFixed(1)}M</td>
-                          <td className="py-4 text-emerald-400 font-bold">{pool.apy}%</td>
-                          <td className="py-4"><span className={`px-3 py-1 rounded-[2%] text-xs ${getRiskColor(pool.risk)}`}>{pool.risk.toUpperCase()}</span></td>
-                          <td className="py-4">${(pool.volume24h/1e6).toFixed(2)}M</td>
+                      {POOLS.map(p => (
+                        <tr key={p.id} className="border-b border-white/5 hover:bg-white/5">
+                          <td className="py-4 font-semibold">{p.name}</td>
+                          <td className="py-4">${(p.tvl/1e6).toFixed(1)}M</td>
+                          <td className="py-4 text-emerald-400 font-bold">{p.apy}%</td>
+                          <td className="py-4"><span className={`px-3 py-1 rounded-[2%] text-xs ${riskCol(p.risk)}`}>{p.risk.toUpperCase()}</span></td>
+                          <td className="py-4">${(p.volume24h/1e6).toFixed(2)}M</td>
                         </tr>
                       ))}
                     </tbody>
@@ -198,7 +178,7 @@ export default function Home() {
               </div>
 
               <div className="glass-card p-6">
-                <h3 className="text-xl font-bold mb-4">📊 APY History (7 Days)</h3>
+                <h3 className="text-xl font-bold mb-4">📊 APY History</h3>
                 <div className="h-80">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={APY_DATA}>
@@ -218,43 +198,43 @@ export default function Home() {
           )}
 
           {/* MODEL HUB */}
-          {activeTab === 'models' && (
-            <motion.div key="models" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
-                <h2 className="text-3xl font-bold" style={{ textShadow: '0 0 10px rgba(157,78,221,0.5)' }}>🤖 Model Hub Activity Monitor</h2>
+          {tab === 'models' && (
+            <motion.div key="mh" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-3xl font-bold" style={{ textShadow: '0 0 10px rgba(157,78,221,0.5)' }}>🤖 Model Hub</h2>
                 <div className="flex items-center gap-3">
-                  <span className="text-white/60 text-sm">🕐 {lastUpdated?.toLocaleTimeString() || '—'}</span>
+                  <span className="text-white/60 text-sm">🕐 {updated?.toLocaleTimeString() || '—'}</span>
                   <label className="flex items-center gap-2 cursor-pointer text-sm">
                     <span className="text-white/60 hidden md:inline">Авто</span>
-                    <input type="checkbox" checked={isAutoRefresh} onChange={(e) => setIsAutoRefresh(e.target.checked)} className="sr-only peer" />
+                    <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} className="sr-only peer" />
                     <div className="w-10 h-5 bg-white/10 rounded-full peer peer-checked:bg-emerald-500 transition-colors"></div>
                     <div className="absolute w-4 h-5 bg-white rounded-[2%] transition-transform peer-checked:translate-x-5"></div>
                   </label>
                 </div>
               </div>
 
-              <div className="flex gap-2 mb-6">
-                <button onClick={exportModels} className="btn-square btn-secondary text-sm">📥 Export CSV</button>
+              <div className="mb-6">
+                <button onClick={() => exportCSV(MODELS, 'models', MODEL_COLS)} className="btn-square btn-secondary text-sm">📥 Export CSV</button>
               </div>
 
-              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                {models.map((model, i) => (
-                  <motion.div key={model.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i*0.1 }} className="glass-card p-6 hover:border-og-purple transition-all">
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                {MODELS.map((m, i) => (
+                  <motion.div key={m.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i*0.1 }} className="glass-card p-6 hover:border-og-purple transition-all">
                     <div className="flex items-center justify-between mb-4">
                       <div className="w-10 h-10 rounded-[2%] bg-gradient-to-br from-og-purple to-pink-500 flex items-center justify-center text-xl">🤖</div>
-                      <span className={`px-3 py-1 rounded-[2%] text-xs ${model.status==='active'?'bg-emerald-500':'bg-gray-500'}`}>{model.status}</span>
+                      <span className={`px-3 py-1 rounded-[2%] text-xs ${m.status==='active'?'bg-emerald-500':'bg-gray-500'}`}>{m.status}</span>
                     </div>
-                    <h3 className="text-lg font-bold mb-2">{model.name}</h3>
+                    <h3 className="text-lg font-bold mb-2">{m.name}</h3>
                     <div className="space-y-2 text-white/70 text-sm">
-                      <div className="flex justify-between"><span>Deployments:</span><span className="text-white font-semibold">{model.deployments}</span></div>
-                      <div className="flex justify-between"><span>Inferences:</span><span className="text-white font-semibold">{model.inferences.toLocaleString()}</span></div>
-                      <div className="flex justify-between"><span>Last Active:</span><span className="text-white font-semibold">{model.lastActive}</span></div>
+                      <div className="flex justify-between"><span>Deploys:</span><span className="text-white font-semibold">{m.deployments}</span></div>
+                      <div className="flex justify-between"><span>Inferences:</span><span className="text-white font-semibold">{m.inferences.toLocaleString()}</span></div>
+                      <div className="flex justify-between"><span>Active:</span><span className="text-white font-semibold">{m.lastActive}</span></div>
                     </div>
                   </motion.div>
                 ))}
               </div>
 
-              <div className="grid md:grid-cols-2 gap-6 mb-8">
+              <div className="grid md:grid-cols-2 gap-6">
                 <div className="glass-card p-6">
                   <h3 className="text-xl font-bold mb-4">📈 Weekly Activity</h3>
                   <div className="h-64">
@@ -271,12 +251,12 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="glass-card p-6">
-                  <h3 className="text-xl font-bold mb-4">📊 Model Status</h3>
+                  <h3 className="text-xl font-bold mb-4">📊 Status</h3>
                   <div className="h-64 flex items-center justify-center">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
-                          {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                        <Pie data={pie} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
+                          {pie.map((e, i) => <Cell key={i} fill={e.color} />)}
                         </Pie>
                         <Tooltip contentStyle={{ background: 'rgba(15,12,41,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '2%' }} />
                         <Legend />
@@ -284,82 +264,56 @@ export default function Home() {
                     </ResponsiveContainer>
                   </div>
                   <div className="text-center mt-4">
-                    <p className="text-4xl font-bold text-og-purple">{models.length ? Math.round(activeModels/models.length*100) : 0}%</p>
-                    <p className="text-white/50 text-sm">Active Models</p>
+                    <p className="text-4xl font-bold text-og-purple">{MODELS.length ? Math.round(activeM/MODELS.length*100) : 0}%</p>
+                    <p className="text-white/50 text-sm">Active</p>
                   </div>
-                </div>
-              </div>
-
-              <div className="glass-card p-6">
-                <h3 className="text-xl font-bold mb-4">🔗 Recent TEE Proofs</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="text-left text-white/50 border-b border-white/10">
-                        <th className="pb-3">Model</th><th className="pb-3">Proof Hash</th>
-                        <th className="pb-3">Timestamp</th><th className="pb-3">Status</th>
-                        <th className="pb-3">Explorer</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[1,2,3].map(i => (
-                        <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                          <td className="py-4">{models[0]?.name || 'Sentiment Analyzer'}</td>
-                          <td className="py-4 font-mono text-xs text-og-cyan">0x{Array(40).fill(0).join('').slice(0,16)}...</td>
-                          <td className="py-4">{i*2}h ago</td>
-                          <td className="py-4"><span className="px-3 py-1 rounded-[2%] bg-emerald-500 text-xs">VERIFIED</span></td>
-                          <td className="py-4"><a href="https://explorer.opengradient.ai" target="_blank" className="text-og-cyan hover:underline text-sm">View →</a></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
                 </div>
               </div>
             </motion.div>
           )}
 
           {/* MEMSYNC */}
-          {activeTab === 'memsync' && (
-            <motion.div key="memsync" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
-                <h2 className="text-3xl font-bold" style={{ textShadow: '0 0 10px rgba(0,217,255,0.5)' }}>🧠 MemSync Data Viewer</h2>
+          {tab === 'memsync' && (
+            <motion.div key="ms" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-3xl font-bold" style={{ textShadow: '0 0 10px rgba(0,217,255,0.5)' }}>🧠 MemSync</h2>
                 <div className="flex items-center gap-3">
-                  <span className="text-white/60 text-sm">🕐 {lastUpdated?.toLocaleTimeString() || '—'}</span>
+                  <span className="text-white/60 text-sm">🕐 {updated?.toLocaleTimeString() || '—'}</span>
                   <label className="flex items-center gap-2 cursor-pointer text-sm">
                     <span className="text-white/60 hidden md:inline">Авто</span>
-                    <input type="checkbox" checked={isAutoRefresh} onChange={(e) => setIsAutoRefresh(e.target.checked)} className="sr-only peer" />
+                    <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} className="sr-only peer" />
                     <div className="w-10 h-5 bg-white/10 rounded-full peer peer-checked:bg-emerald-500 transition-colors"></div>
                     <div className="absolute w-4 h-5 bg-white rounded-[2%] transition-transform peer-checked:translate-x-5"></div>
                   </label>
                 </div>
               </div>
 
-              {memSyncData?.stats && (
+              {MEMSYNC.stats && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                   <div className="glass-card p-4 text-center">
-                    <p className="text-3xl font-bold text-og-cyan">{memSyncData.stats.totalItems.toLocaleString()}</p>
-                    <p className="text-white/50 text-sm">Total Items</p>
+                    <p className="text-3xl font-bold text-og-cyan">{MEMSYNC.stats.totalItems.toLocaleString()}</p>
+                    <p className="text-white/50 text-sm">Items</p>
                   </div>
                   <div className="glass-card p-4 text-center">
-                    <p className="text-3xl font-bold text-emerald-400">{memSyncData.stats.encryptedItems.toLocaleString()}</p>
+                    <p className="text-3xl font-bold text-emerald-400">{MEMSYNC.stats.encryptedItems.toLocaleString()}</p>
                     <p className="text-white/50 text-sm">Encrypted</p>
                   </div>
                   <div className="glass-card p-4 text-center">
-                    <p className="text-3xl font-bold text-og-purple">{memSyncData.stats.storageUsed}</p>
-                    <p className="text-white/50 text-sm">Storage Used</p>
+                    <p className="text-3xl font-bold text-og-purple">{MEMSYNC.stats.storageUsed}</p>
+                    <p className="text-white/50 text-sm">Storage</p>
                   </div>
                   <div className="glass-card p-4 text-center">
-                    <p className="text-3xl font-bold text-og-orange">{memSyncData.stats.lastBackup}</p>
-                    <p className="text-white/50 text-sm">Last Backup</p>
+                    <p className="text-3xl font-bold text-og-orange">{MEMSYNC.stats.lastBackup}</p>
+                    <p className="text-white/50 text-sm">Backup</p>
                   </div>
                 </div>
               )}
 
-              <div className="glass-card p-6 mb-6">
-                <h3 className="text-xl font-bold mb-4">🔗 Connected Sources</h3>
+              <div className="glass-card p-6">
+                <h3 className="text-xl font-bold mb-4">🔗 Sources</h3>
                 <div className="space-y-4">
-                  {memSyncData?.connectedSources?.map(src => (
-                    <div key={src.id} className="flex items-center justify-between p-4 rounded-[2%] bg-white/5 hover:bg-white/10 transition-colors">
+                  {MEMSYNC.sources?.map(src => (
+                    <div key={src.id} className="flex items-center justify-between p-4 rounded-[2%] bg-white/5">
                       <div className="flex items-center gap-4">
                         <div className={`w-3 h-3 rounded-full ${src.status==='synced'?'bg-emerald-500':src.status==='pending'?'bg-og-orange':'bg-red-500'}`}></div>
                         <div>
@@ -375,26 +329,14 @@ export default function Home() {
                   ))}
                 </div>
               </div>
-
-              <div className="glass-card p-6">
-                <h3 className="text-xl font-bold mb-4">🔐 TEE Encryption Status</h3>
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-[2%] bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center text-2xl">✅</div>
-                  <div>
-                    <p className="font-semibold">All data encrypted in Trusted Execution Environment</p>
-                    <p className="text-white/50 text-sm">Your personal data is processed in hardware-isolated enclaves. Only you hold the decryption keys.</p>
-                  </div>
-                </div>
-              </div>
             </motion.div>
           )}
 
         </AnimatePresence>
       </section>
 
-      {/* Footer */}
       <footer className="text-center py-8 text-white/50 text-sm mt-12">
-        <p>Built on OpenGradient Ecosystem • {new Date().getFullYear()}</p>
+        <p>Built on OpenGradient • {new Date().getFullYear()}</p>
       </footer>
     </main>
   )
