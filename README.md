@@ -3,7 +3,6 @@
 > **OpenGradient Ecosystem Analytics Dashboard**  
 > 🌐 Live: [https://og-intelligence-hub.vercel.app](https://og-intelligence-hub.vercel.app)
 
-![OG Intelligence Hub Preview](https://og-intelligence-hub.vercel.app/og-preview.png)
 
 ---
 
@@ -89,7 +88,7 @@
 
 ---
 
-⚠️ Disclaimer
+## ⚠️ Disclaimer
 This project is for educational and informational purposes only.
 Pool and model data may be inaccurate or outdated
 Wallet risk assessment is simplified and does not replace professional auditing
