@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getAPYHistory } from '@/lib/opengradient-api'
+// Меняем '@/lib/...' на относительный путь:
+import { getAPYHistory } from '../../../lib/opengradient-api'
 
 export async function GET() {
   try {
