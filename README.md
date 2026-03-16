@@ -96,6 +96,6 @@
     <td align="center" width="20%">📊<br><strong>Data Accuracy</strong><br><small>Pool and model data may be inaccurate or outdated</small></td>
     <td align="center" width="20%">⚠️<br><strong>Risk Assessment</strong><br><small>Wallet risk check is simplified, not professional auditing</small></td>
     <td align="center" width="20%">🔍<br><strong>Do Your Own Research</strong><br><small>Always DYOR before interacting with any smart contract</small></td>
-    <td align="center" width="20%">🧪<br><strong>Testnet Only</strong><br><small>Runs on Base Sepolia — do not use mainnet funds</small></td>
+    <td align="center" width="20%">🧪<br><strong>Testnet Only</strong><br><small>Runs on Base Sepolia do not use mainnet funds</small></td>
   </tr>
 </table>
