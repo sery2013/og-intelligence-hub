@@ -12,14 +12,8 @@ module.exports = {
         'og-cyan': '#00D9FF',
         'og-purple': '#9D4EDD',
         'og-emerald': '#10B981',
-        'og-dark': '#0F0C29',
       },
-      backgroundImage: {
-        'og-gradient': 'linear-gradient(135deg, #0F0C29 0%, #302B63 50%, #24243E 100%)',
-      },
-      borderRadius: {
-        'og': '2%',
-      },
+      borderRadius: { 'og': '2%' },
     },
   },
   plugins: [],
