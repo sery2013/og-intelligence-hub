@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, PieChart, Pie, Cell } from 'recharts'
+import { createPublicClient, http, parseAbi, formatEther } from 'viem'
+import { baseSepolia } from 'viem/chains'
 
-// Моковые данные
+// ===== МОКОВЫЕ ДАННЫЕ =====
 const POOLS = [
   { id: 1, name: 'ETH/USDC', tvl: 12500000, apy: 24.5, risk: 'medium', volume24h: 3200000 },
   { id: 2, name: 'OPG/ETH', tvl: 4200000, apy: 42.3, risk: 'high', volume24h: 890000 },
@@ -46,7 +48,7 @@ const MEMSYNC = {
   ]
 }
 
-// Утилита экспорта
+// ===== УТИЛИТЫ =====
 function exportCSV(data, filename, cols) {
   if (!data?.length) return
   const header = cols.map(c => c.label).join(',')
@@ -71,17 +73,126 @@ const MODEL_COLS = [
   { key: 'inferences', label: 'Inferences' }, { key: 'lastActive', label: 'Active' }, { key: 'status', label: 'Status' },
 ]
 
+// ===== ПРОВЕРКА КОШЕЛЬКА =====
+const OPG_TOKEN_ADDRESS = '0x240b09731D96979f50B2C649C9CE10FcF9C7987F' // $OPG на Base Sepolia
+
+const TOKEN_ABI = parseAbi([
+  'function balanceOf(address) view returns (uint256)',
+  'function symbol() view returns (string)',
+  'function decimals() view returns (uint8)',
+])
+
 export default function Home() {
   const [tab, setTab] = useState('bitquant')
   const [updated, setUpdated] = useState(null)
   const [auto, setAuto] = useState(true)
+  
+  // Состояние кошелька
+  const [walletAddress, setWalletAddress] = useState('')
+  const [walletData, setWalletData] = useState(null)
+  const [loadingWallet, setLoadingWallet] = useState(false)
+  const [walletError, setWalletError] = useState('')
 
+  // Авто-обновление
   useEffect(() => {
     if (!auto) return
     const i = setInterval(() => setUpdated(new Date()), 30000)
     setUpdated(new Date())
     return () => clearInterval(i)
   }, [auto])
+
+  // Подключение кошелька
+  const connectWallet = async () => {
+    if (typeof window === 'undefined' || !window.ethereum) {
+      setWalletError('Установите MetaMask или другой Web3-кошелёк')
+      return
+    }
+
+    setLoadingWallet(true)
+    setWalletError('')
+
+    try {
+      // Запрос подключения
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
+      const address = accounts[0]
+      setWalletAddress(address)
+
+      // Создание клиента
+      const client = createPublicClient({ 
+        chain: baseSepolia, 
+        transport: http() 
+      })
+
+      // Получение баланса ETH
+      const ethBalance = await client.getBalance({ address })
+      
+      // Получение баланса $OPG
+      let opgBalance = BigInt(0)
+      let opgSymbol = 'OPG'
+      try {
+        opgBalance = await client.readContract({
+          address: OPG_TOKEN_ADDRESS,
+          abi: TOKEN_ABI,
+          functionName: 'balanceOf',
+          args: [address],
+        })
+      } catch (e) {
+        console.log('OPG token not available on this network')
+      }
+
+      // Получение количества транзакций (nonce)
+      const txCount = await client.getTransactionCount({ address })
+
+      // Оценка риска
+      const riskScore = calculateRiskScore(txCount, ethBalance, opgBalance)
+
+      setWalletData({
+        address,
+        ethBalance: formatEther(ethBalance),
+        opgBalance: Number(opgBalance) / 1e18,
+        txCount,
+        riskScore,
+        connectedAt: new Date(),
+      })
+    } catch (err) {
+      setWalletError(err.message || 'Ошибка подключения')
+      console.error('Wallet error:', err)
+    } finally {
+      setLoadingWallet(false)
+    }
+  }
+
+  // Отключение кошелька
+  const disconnectWallet = () => {
+    setWalletAddress('')
+    setWalletData(null)
+    setWalletError('')
+  }
+
+  // Расчёт риска (упрощённая логика)
+  const calculateRiskScore = (txCount, ethBalance, opgBalance) => {
+    let score = 100 // Начинаем с 100 (низкий риск)
+    const warnings = []
+
+    // Новый кошелёк (мало транзакций)
+    if (txCount < 5) {
+      score -= 20
+      warnings.push('🆕 Новый кошелёк (мало истории)')
+    }
+
+    // Нулевой баланс
+    if (Number(ethBalance) < 0.001 && Number(opgBalance) < 1) {
+      score -= 15
+      warnings.push('💸 Почти пустой баланс')
+    }
+
+    // Определение уровня риска
+    let riskLevel = 'low'
+    if (score < 50) riskLevel = 'high'
+    else if (score < 75) riskLevel = 'medium'
+
+    return { score, level: riskLevel, warnings }
+  }
 
   const riskCol = (r) => ({ low: 'bg-emerald-500', medium: 'bg-og-orange', high: 'bg-red-500' }[r] || 'bg-gray-500')
   const activeM = MODELS.filter(m => m.status === 'active').length
@@ -101,12 +212,109 @@ export default function Home() {
             </div>
             <div>
               <h1 className="text-2xl font-bold neon-glow">OG Intelligence Hub</h1>
-              <p className="text-white/50 text-sm">OpenGradient Ecosystem</p>
+              <p className="text-white/50 text-sm">OpenGradient Ecosystem + Wallet Checker</p>
             </div>
           </div>
           
+          {/* Кнопка кошелька */}
+          {walletAddress ? (
+            <div className="flex items-center gap-3">
+              <div className="glass-card px-4 py-2 rounded-[2%] text-right">
+                <p className="text-xs text-white/50">Connected</p>
+                <p className="font-mono text-og-cyan text-sm">
+                  {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                </p>
+              </div>
+              <button onClick={disconnectWallet} className="btn-square btn-secondary text-sm">
+                ✕ Disconnect
+              </button>
+            </div>
+          ) : (
+            <button 
+              onClick={connectWallet} 
+              className="btn-square btn-primary"
+              disabled={loadingWallet}
+            >
+              {loadingWallet ? '⏳ Connecting...' : '🦊 Connect Wallet'}
+            </button>
+          )}
         </div>
       </header>
+
+      {/* Панель проверки кошелька (если подключён) */}
+      {walletData && (
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mx-4 mt-4"
+        >
+          <div className="glass-card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold">🔍 Wallet Security Check</h3>
+              <span className={`px-4 py-2 rounded-[2%] text-sm font-bold ${
+                walletData.riskScore.level === 'low' ? 'bg-emerald-500/20 text-emerald-400' :
+                walletData.riskScore.level === 'medium' ? 'bg-og-orange/20 text-og-orange' :
+                'bg-red-500/20 text-red-400'
+              }`}>
+                Risk: {walletData.riskScore.level.toUpperCase()} ({walletData.riskScore.score}/100)
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              <div className="bg-white/5 rounded-[2%] p-4">
+                <p className="text-white/50 text-sm">ETH Balance</p>
+                <p className="text-2xl font-bold text-og-cyan">{parseFloat(walletData.ethBalance).toFixed(4)} ETH</p>
+              </div>
+              <div className="bg-white/5 rounded-[2%] p-4">
+                <p className="text-white/50 text-sm">$OPG Balance</p>
+                <p className="text-2xl font-bold text-og-orange">{walletData.opgBalance.toFixed(2)} OPG</p>
+              </div>
+              <div className="bg-white/5 rounded-[2%] p-4">
+                <p className="text-white/50 text-sm">Transactions</p>
+                <p className="text-2xl font-bold text-og-purple">{walletData.txCount}</p>
+              </div>
+              <div className="bg-white/5 rounded-[2%] p-4">
+                <p className="text-white/50 text-sm">Wallet Age</p>
+                <p className="text-2xl font-bold text-emerald-400">
+                  {walletData.txCount < 5 ? '🆕 New' : walletData.txCount < 50 ? '📈 Growing' : '🏆 Established'}
+                </p>
+              </div>
+            </div>
+
+            {/* Предупреждения */}
+            {walletData.riskScore.warnings.length > 0 && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-[2%] p-4">
+                <p className="font-bold text-red-400 mb-2">⚠️ Security Warnings:</p>
+                <ul className="space-y-1">
+                  {walletData.riskScore.warnings.map((w, i) => (
+                    <li key={i} className="text-white/70 text-sm">• {w}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Рекомендации */}
+            {walletData.riskScore.level === 'low' && (
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-[2%] p-4 mt-4">
+                <p className="font-bold text-emerald-400">✅ Wallet looks safe!</p>
+                <p className="text-white/70 text-sm">Good transaction history and healthy balance.</p>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Ошибка подключения */}
+      {walletError && (
+        <div className="mx-4 mt-4">
+          <div className="glass-card p-4 border border-red-500/30 bg-red-500/10">
+            <p className="text-red-400">⚠️ {walletError}</p>
+            <button onClick={() => setWalletError('')} className="btn-square btn-secondary text-sm mt-2">
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <nav className="mx-4 mt-6">
@@ -335,8 +543,10 @@ export default function Home() {
         </AnimatePresence>
       </section>
 
+      {/* Footer */}
       <footer className="text-center py-8 text-white/50 text-sm mt-12">
         <p>Built on OpenGradient • {new Date().getFullYear()}</p>
+        <p className="mt-2">Wallet Check: Base Sepolia Testnet</p>
       </footer>
     </main>
   )
