@@ -90,8 +90,8 @@
 
 ## ⚠️ Disclaimer
 
-<div align="center">
-
-🎓 **Educational Use Only** &nbsp;•&nbsp; 📊 **Data May Be Inaccurate** &nbsp;•&nbsp; ⚠️ **Simplified Risk Check** &nbsp;•&nbsp; 🔍 **DYOR** &nbsp;•&nbsp; 🧪 **Testnet Only**
-
-</div>
+🎓 **Educational Use Only** — For educational purposes only  
+📊 **Data May Be Inaccurate** — Pool/model data may be outdated  
+⚠️ **Simplified Risk Check** — Not a professional security audit  
+🔍 **DYOR** — Always research before using smart contracts  
+🧪 **Testnet Only** — Base Sepolia testnet, no mainnet funds
