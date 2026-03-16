@@ -104,7 +104,7 @@ export default function Home() {
               <p className="text-white/50 text-sm">OpenGradient Ecosystem</p>
             </div>
           </div>
-          <button className="btn-square btn-secondary">🦊 Connect Wallet</button>
+          
         </div>
       </header>
 
